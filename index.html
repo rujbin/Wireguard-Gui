@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Wireguard GUI</title>
+  <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Wireguard GUI</h1>
+      <div class="header-buttons">
+        <button class="btn btn-secondary" id="refreshButton">Status aktualisieren</button>
+        <button class="btn btn-primary" id="importButton">Konfiguration importieren</button>
+      </div>
+    </div>
+    
+    <!-- Admin-Rechte-Warnung -->
+    <div id="admin-warning" class="alert alert-warning d-none" role="alert">
+      <strong>Achtung:</strong> <span id="admin-warning-message"></span>
+      <button type="button" class="btn-close float-end" data-bs-dismiss="alert" aria-label="Schließen"></button>
+    </div>
+    
+    <!-- Fehler-Meldung -->
+    <div id="error-alert" class="alert alert-danger d-none" role="alert">
+      <span id="error-message"></span>
+      <button type="button" class="btn-close float-end" data-bs-dismiss="alert" aria-label="Schließen"></button>
+    </div>
+    
+    <div class="config-list">
+      <p class="empty-message">Keine Konfigurationen gefunden. Importieren Sie eine Konfiguration, um zu beginnen.</p>
+      <!-- Konfigurationen werden hier dynamisch eingefügt -->
+    </div>
+
+    <!-- Tunnel Liste -->
+    <div class="list-group mt-4" id="tunnel-list">
+      <!-- Tunnel-Einträge werden dynamisch per JavaScript eingefügt -->
+    </div>
+  </div>
+
+  <!-- Tunnel-Eintrag-Template -->
+  <template id="tunnel-entry-template">
+    <div class="list-group-item d-flex justify-content-between align-items-center tunnel-entry">
+      <div>
+        <span class="status-indicator"></span>
+        <span class="tunnel-name"></span>
+      </div>
+      <div>
+        <button class="btn btn-outline-secondary btn-sm export-btn">Exportieren</button>
+        <button class="btn btn-success btn-sm activate-btn">Aktivieren</button>
+        <button class="btn btn-danger btn-sm deactivate-btn d-none">Deaktivieren</button>
+      </div>
+    </div>
+  </template>
+
+  <script>
+    // Grundlegende event Listener
+    document.getElementById('importButton').addEventListener('click', function() {
+      try {
+        if (window.electronAPI && window.electronAPI.importConfig) {
+          window.electronAPI.importConfig()
+            .then(result => {
+              if (result.success) {
+                console.log('Konfiguration erfolgreich importiert:', result.config);
+                loadConfigurations();
+              } else if (result.error) {
+                showError('Fehler beim Importieren: ' + result.error);
+              }
+            })
+            .catch(err => {
+              showError('Fehler beim Importieren: ' + err.message);
+            });
+        } else {
+          showError('API nicht verfügbar: electronAPI.importConfig');
+        }
+      } catch (error) {
+        showError('Fehler: ' + error.message);
+      }
+    });
+    
+    document.getElementById('refreshButton').addEventListener('click', function() {
+      try {
+        if (window.electronAPI && window.electronAPI.checkTunnelStatus) {
+          this.classList.add('btn-loading');
+          
+          window.electronAPI.checkTunnelStatus()
+            .then(() => {
+              setTimeout(() => {
+                this.classList.remove('btn-loading');
+              }, 1000);
+            })
+            .catch(err => {
+              this.classList.remove('btn-loading');
+              showError('Fehler beim Aktualisieren: ' + err.message);
+            });
+        } else {
+          showError('API nicht verfügbar: electronAPI.checkTunnelStatus');
+        }
+      } catch (error) {
+        showError('Fehler: ' + error.message);
+      }
+    });
+    
+    document.getElementById('error-close').addEventListener('click', function() {
+      document.getElementById('error-message').style.display = 'none';
+    });
+    
+    // Tunnel-Status event listener
+    function setupTunnelStatusListener() {
+      if (window.electronAPI && window.electronAPI.onTunnelStatus) {
+        window.electronAPI.onTunnelStatus((status) => {
+          console.log('Tunnel-Status update:', status);
+          if (status.success) {
+            // Hier würden wir die UI aktualisieren
+          } else if (status.error) {
+            showError(`Fehler beim Tunnel "${status.name}": ${status.error}`);
+          }
+        });
+      }
+    }
+    
+    // Lade Konfigurationen
+    async function loadConfigurations() {
+      try {
+        if (window.electronAPI && window.electronAPI.getAllConfigs) {
+          const configs = await window.electronAPI.getAllConfigs();
+          console.log('Geladene Konfigurationen:', configs);
+          
+          const configList = document.querySelector('.config-list');
+          
+          if (configs.length === 0) {
+            configList.innerHTML = '<p class="empty-message">Keine Konfigurationen gefunden. Importieren Sie eine Konfiguration, um zu beginnen.</p>';
+            return;
+          }
+          
+          // Zeige Konfigurationen an
+          configList.innerHTML = '';
+          configs.forEach(config => {
+            const configItem = document.createElement('div');
+            configItem.className = 'config-item';
+            
+            const configInfo = document.createElement('div');
+            configInfo.className = 'config-info';
+            
+            const statusIndicator = document.createElement('div');
+            statusIndicator.className = `status-indicator ${config.active ? 'active' : 'inactive'}`;
+            statusIndicator.title = config.active ? 'Tunnel ist aktiv' : 'Tunnel ist inaktiv';
+            
+            const configName = document.createElement('div');
+            configName.className = 'config-name';
+            configName.textContent = config.name;
+            
+            configInfo.appendChild(statusIndicator);
+            configInfo.appendChild(configName);
+            
+            const configControls = document.createElement('div');
+            configControls.className = 'config-controls';
+            
+            const exportButton = document.createElement('button');
+            exportButton.className = 'btn';
+            exportButton.textContent = 'Exportieren';
+            exportButton.onclick = () => exportConfig(config.name);
+            
+            const actionButton = document.createElement('button');
+            actionButton.className = config.active ? 'btn btn-danger' : 'btn btn-success';
+            actionButton.textContent = config.active ? 'Deaktivieren' : 'Aktivieren';
+            actionButton.onclick = () => config.active ? 
+              deactivateTunnel(config.name) : activateTunnel(config.name);
+            
+            configControls.appendChild(exportButton);
+            configControls.appendChild(actionButton);
+            
+            configItem.appendChild(configInfo);
+            configItem.appendChild(configControls);
+            configList.appendChild(configItem);
+          });
+        } else {
+          showError('API nicht verfügbar: electronAPI.getAllConfigs');
+        }
+      } catch (error) {
+        showError('Fehler beim Laden der Konfigurationen: ' + error.message);
+      }
+    }
+    
+    // Hilfsfunktionen
+    function showError(message) {
+      const errorText = document.getElementById('error-text');
+      const errorMessage = document.getElementById('error-message');
+      
+      errorText.textContent = message;
+      errorMessage.style.display = 'flex';
+    }
+    
+    // Tunnel-Aktionen
+    async function exportConfig(name) {
+      try {
+        if (window.electronAPI && window.electronAPI.exportConfig) {
+          await window.electronAPI.exportConfig(name);
+        } else {
+          showError('API nicht verfügbar: electronAPI.exportConfig');
+        }
+      } catch (error) {
+        showError('Fehler beim Exportieren: ' + error.message);
+      }
+    }
+    
+    async function activateTunnel(name) {
+      try {
+        if (window.electronAPI && window.electronAPI.activateTunnel) {
+          await window.electronAPI.activateTunnel(name);
+        } else {
+          showError('API nicht verfügbar: electronAPI.activateTunnel');
+        }
+      } catch (error) {
+        showError('Fehler beim Aktivieren des Tunnels: ' + error.message);
+      }
+    }
+    
+    async function deactivateTunnel(name) {
+      try {
+        if (window.electronAPI && window.electronAPI.deactivateTunnel) {
+          await window.electronAPI.deactivateTunnel(name);
+        } else {
+          showError('API nicht verfügbar: electronAPI.deactivateTunnel');
+        }
+      } catch (error) {
+        showError('Fehler beim Deaktivieren des Tunnels: ' + error.message);
+      }
+    }
+    
+    // Initialisierung
+    document.addEventListener('DOMContentLoaded', function() {
+      console.log('DOM geladen, initialisiere...');
+      setupTunnelStatusListener();
+      loadConfigurations();
+      
+      // Überprüfe, ob ein Dateipfad als URL-Parameter übergeben wurde
+      const urlParams = new URLSearchParams(window.location.search);
+      const importPath = urlParams.get('import');
+      
+      if (importPath) {
+        console.log('Direkter Import von Pfad:', importPath);
+        if (window.electronAPI && window.electronAPI.importConfig) {
+          window.electronAPI.importConfig(importPath)
+            .then(result => {
+              if (result.success) {
+                console.log('Konfiguration erfolgreich importiert:', result.config);
+                loadConfigurations();
+              } else if (result.error) {
+                showError('Fehler beim Importieren: ' + result.error);
+              }
+            })
+            .catch(err => {
+              showError('Fehler beim Importieren: ' + err.message);
+            });
+        }
+      }
+    });
+
+    // Event-Listener für Admin-Rechte-Warnung
+    window.electronAPI.onAdminRightsWarning((data) => {
+      const adminWarning = document.getElementById('admin-warning');
+      const adminWarningMessage = document.getElementById('admin-warning-message');
+      
+      adminWarningMessage.textContent = data.message;
+      adminWarning.classList.remove('d-none');
+    });
+
+    // Event-Listener für Tunnel-Status
+    window.electronAPI.onTunnelStatus((data) => {
+      // Aktualisieren der UI basierend auf Tunnelstatus
+      refreshTunnels();
+      
+      // Fehlerbehandlung
+      if (!data.success && data.error) {
+        const errorAlert = document.getElementById('error-alert');
+        const errorMessage = document.getElementById('error-message');
+        
+        errorMessage.textContent = `Fehler beim Tunnel "${data.name}": ${data.error}`;
+        errorAlert.classList.remove('d-none');
+      }
+    });
+    
+    // Event-Handler für Fehler-Schließen
+    document.querySelectorAll('.btn-close').forEach(button => {
+      button.addEventListener('click', function() {
+        this.closest('.alert').classList.add('d-none');
+      });
+    });
+
+    // Funktion zum Aktualisieren der Tunnelliste
+    async function refreshTunnels() {
+      const tunnelList = document.getElementById('tunnel-list');
+      tunnelList.innerHTML = '';
+      
+      const configs = await window.electronAPI.getAllConfigs();
+      
+      Object.keys(configs).forEach(async (name) => {
+        const template = document.getElementById('tunnel-entry-template');
+        const clone = template.content.cloneNode(true);
+        
+        const tunnelName = clone.querySelector('.tunnel-name');
+        tunnelName.textContent = name;
+        
+        const statusIndicator = clone.querySelector('.status-indicator');
+        
+        // Tunnel-Status abrufen und anzeigen
+        const status = await window.electronAPI.checkTunnelStatus(name);
+        if (status.active) {
+          statusIndicator.classList.add('active');
+          // Aktivieren-Button verstecken, Deaktivieren-Button anzeigen
+          clone.querySelector('.activate-btn').classList.add('d-none');
+          clone.querySelector('.deactivate-btn').classList.remove('d-none');
+        } else {
+          statusIndicator.classList.remove('active');
+          // Deaktivieren-Button verstecken, Aktivieren-Button anzeigen
+          clone.querySelector('.activate-btn').classList.remove('d-none');
+          clone.querySelector('.deactivate-btn').classList.add('d-none');
+        }
+        
+        // Event-Listener für Aktivieren-Button
+        const activateBtn = clone.querySelector('.activate-btn');
+        activateBtn.addEventListener('click', async () => {
+          activateBtn.disabled = true;
+          activateBtn.textContent = 'Aktiviere...';
+          
+          try {
+            await window.electronAPI.activateTunnel(name);
+            // UI wird durch tunnel-status Event aktualisiert
+          } catch (error) {
+            // Fehlerbehandlung
+            activateBtn.disabled = false;
+            activateBtn.textContent = 'Aktivieren';
+            alert(`Fehler beim Aktivieren: ${error.message}`);
+          }
+        });
+        
+        // Event-Listener für Deaktivieren-Button
+        const deactivateBtn = clone.querySelector('.deactivate-btn');
+        deactivateBtn.addEventListener('click', async () => {
+          deactivateBtn.disabled = true;
+          deactivateBtn.textContent = 'Deaktiviere...';
+          
+          try {
+            await window.electronAPI.deactivateTunnel(name);
+            // UI wird durch tunnel-status Event aktualisiert
+          } catch (error) {
+            // Fehlerbehandlung
+            deactivateBtn.disabled = false;
+            deactivateBtn.textContent = 'Deaktivieren';
+            alert(`Fehler beim Deaktivieren: ${error.message}`);
+          }
+        });
+        
+        // Event-Listener für Export-Button 
+        const exportBtn = clone.querySelector('.export-btn');
+        exportBtn.addEventListener('click', async () => {
+          try {
+            await window.electronAPI.exportConfig(name);
+          } catch (error) {
+            alert(`Fehler beim Exportieren: ${error.message}`);
+          }
+        });
+        
+        tunnelList.appendChild(clone);
+      });
+    }
+
+    // Initialisiere die Tunnelliste beim Laden
+    document.addEventListener('DOMContentLoaded', () => {
+      refreshTunnels();
+    });
+  </script>
+</body>
+</html> 

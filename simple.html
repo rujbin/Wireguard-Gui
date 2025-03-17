@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Wireguard GUI - Simple</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #f0f0f0;
+      color: #333;
+      padding: 20px;
+      margin: 0;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background-color: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+    h1 {
+      color: #2c3e50;
+    }
+    button {
+      background-color: #007bff;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    button:hover {
+      background-color: #0069d9;
+    }
+    #apiStatus {
+      margin-top: 20px;
+      padding: 10px;
+      background-color: #f5f5f5;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Wireguard GUI - Simple Test</h1>
+    <p>Diese Seite testet die grundlegende Funktionalität ohne React oder komplexe Abhängigkeiten.</p>
+    
+    <button id="testButton">Electron API testen</button>
+    
+    <div id="apiStatus">API-Status wird hier angezeigt...</div>
+  </div>
+
+  <script>
+    // Basistest für Electron-API
+    document.getElementById('testButton').addEventListener('click', function() {
+      const apiStatus = document.getElementById('apiStatus');
+      
+      try {
+        apiStatus.innerHTML = '<h3>API-Test:</h3>';
+        
+        // Prüfe, ob window.electronAPI existiert
+        if (typeof window.electronAPI === 'undefined') {
+          apiStatus.innerHTML += '<p style="color: red">❌ window.electronAPI ist nicht definiert!</p>';
+          
+          // Falls es nicht definiert ist, zeige alle verfügbaren window-Eigenschaften an
+          apiStatus.innerHTML += '<p>Verfügbare window-Eigenschaften:</p><ul>';
+          for (const key in window) {
+            if (key.toLowerCase().includes('electron')) {
+              apiStatus.innerHTML += `<li>${key}</li>`;
+            }
+          }
+          apiStatus.innerHTML += '</ul>';
+        } else {
+          apiStatus.innerHTML += '<p style="color: green">✓ window.electronAPI ist verfügbar</p>';
+          
+          // Zeige alle verfügbaren API-Methoden
+          apiStatus.innerHTML += '<p>Verfügbare API-Methoden:</p><ul>';
+          for (const method in window.electronAPI) {
+            apiStatus.innerHTML += `<li>${method}</li>`;
+          }
+          apiStatus.innerHTML += '</ul>';
+        }
+      } catch (error) {
+        apiStatus.innerHTML += `<p style="color: red">Fehler beim API-Test: ${error.message}</p>`;
+      }
+    });
+  </script>
+</body>
+</html> 

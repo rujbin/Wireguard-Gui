@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Wireguard GUI - Test</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', 'Helvetica Neue', sans-serif;
+      padding: 20px;
+      color: #333;
+      line-height: 1.6;
+    }
+    button {
+      padding: 8px 16px;
+      margin: 5px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    #result {
+      margin-top: 20px;
+      padding: 10px;
+      background-color: #f5f5f5;
+      border-radius: 4px;
+      min-height: 100px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Wireguard GUI - Test</h1>
+  <p>Diese Seite testet, ob die Electron-API korrekt funktioniert.</p>
+  
+  <div>
+    <button id="test-api">API testen</button>
+    <button id="test-dom">DOM testen</button>
+  </div>
+  
+  <div id="result">Ergebnisse werden hier angezeigt...</div>
+  
+  <script>
+    // Prüfe, ob die Electron-API verfügbar ist
+    document.getElementById('test-api').addEventListener('click', function() {
+      const resultDiv = document.getElementById('result');
+      try {
+        resultDiv.innerHTML = '<h3>API-Test:</h3>';
+        
+        // Prüfe, ob window.electronAPI existiert
+        if (typeof window.electronAPI === 'undefined') {
+          resultDiv.innerHTML += '<p style="color: red">❌ window.electronAPI ist nicht definiert!</p>';
+        } else {
+          resultDiv.innerHTML += '<p style="color: green">✓ window.electronAPI ist verfügbar</p>';
+          
+          // Zeige alle verfügbaren API-Methoden
+          resultDiv.innerHTML += '<p>Verfügbare API-Methoden:</p><ul>';
+          for (const method in window.electronAPI) {
+            resultDiv.innerHTML += `<li>${method}</li>`;
+          }
+          resultDiv.innerHTML += '</ul>';
+        }
+      } catch (error) {
+        resultDiv.innerHTML += `<p style="color: red">Fehler beim API-Test: ${error.message}</p>`;
+      }
+    });
+    
+    // Teste, ob DOM-Rendering funktioniert
+    document.getElementById('test-dom').addEventListener('click', function() {
+      const resultDiv = document.getElementById('result');
+      try {
+        resultDiv.innerHTML = '<h3>DOM-Test:</h3>';
+        
+        // Erstelle und füge ein Element hinzu
+        const testDiv = document.createElement('div');
+        testDiv.style.padding = '10px';
+        testDiv.style.margin = '10px';
+        testDiv.style.backgroundColor = '#e9f7ef';
+        testDiv.style.border = '1px solid #28a745';
+        testDiv.style.borderRadius = '4px';
+        
+        testDiv.textContent = 'Dieses Element wurde dynamisch erstellt. DOM-Manipulation funktioniert!';
+        
+        resultDiv.appendChild(testDiv);
+        resultDiv.innerHTML += '<p style="color: green">✓ DOM-Manipulation funktioniert</p>';
+      } catch (error) {
+        resultDiv.innerHTML += `<p style="color: red">Fehler beim DOM-Test: ${error.message}</p>`;
+      }
+    });
+  </script>
+</body>
+</html> 
